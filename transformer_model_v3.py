@@ -81,143 +81,71 @@ def string_preprocess(sen:str):
 
 """###Tokinizer"""
 
-class TokinizerUtils():
-  def __init__(self,vocab_size_limit,max_sequance_length):
+class TokinizerUtil():
+  def __init__(self, maxSquanceLength=33, maxVocabalaryLength=10000):
+    self.dictonary={"PAD": 0, "UNK": 1}
+    self.maxVocabalaryLength=maxVocabalaryLength
+    self.maxSquanceLength=maxSquanceLength
 
-    self.fit_dataset=[]
-    self.longets_string_len=0
+  def __len__(self):
+    return len(self.dictonary)
 
-    self.max_sequance_length=max_sequance_length
-    self.vocab_size_limit=vocab_size_limit
+  def addWord(self, word:str) -> None:
+    if self.maxVocabalaryLength>len(self.dictonary):
+      if word not in self.dictonary:
+        self.dictonary[word]=len(self.dictonary)
 
+  def findWordsToken(self, vocabalary:dict, word:str) -> int:
+    if word in vocabalary:
+      return vocabalary[word]
+    return vocabalary["UNK"]
 
-    if self.max_sequance_length!=None:
-      self.longets_string_len=self.max_sequance_length
+  def pad(self, message:list[int]):
+    paddingRequired=self.maxSquanceLength-len(message)
+    paddingList=[self.dictonary["PAD"]]*paddingRequired
 
-  vocabolary=dict({"PAD":0,"UNK":1,"MASK":2,"SOS":3,"EOS":4})
+    return message+paddingList
 
-  def _extract_data_from_pandas_csv(self,dataframe_paths:list):
-    for dataframe_path in dataframe_paths:
-      dataframe=pd.read_csv(dataframe_path)
-
-      _,column_numbers=dataframe.shape
-      for column_number in range(column_numbers):
-        column=dataframe.iloc[:,column_number]
-        [self.fit_dataset.append(string_preprocess(str(i))) for i in column]
-
-  def __len__(self) -> int:
-    return len(self.vocabolary)
-
-  def __getitem__(self,index_or_word)->Union[int,str]:
-    if type(index_or_word)==int:
-      return self._get_word_from_index(index_or_word)
-    elif type(index_or_word)==str:
-      return  self._get_index_from_word(index_or_word)
-    else:
-      raise TypeError("data type is not suported, make sure its a int or str")
-
-  def _get_word_from_index(self,word):
-    return list(self.vocabolary.keys())[list(self.vocabolary.values()).index(word)]
-
-  def _get_index_from_word(self,idx):
-    return list(self.vocabolary.keys()).index(idx)
-
-  def _fit_vocabalary_on_dataset(self)->None:
-    self._find_lenght_of_longest_string()
-
-  def _find_lenght_of_longest_string(self)->None:
-    for string in self.fit_dataset:
-      if self.max_sequance_length==None:
-        if len(string)>self.longets_string_len:
-          self.longets_string_len=len(string)
-
-  def fit(self)->None:
-    self._find_lenght_of_longest_string()
-    vocabolary=self._make_dict_of_dataset()
-
-    most_used_words_in_order=self._sort_dict_by_most_word_count(vocabolary)
-    self._add_words_to_dict_in_order(most_used_words_in_order)
-
-  def _make_dict_of_dataset(self)->dict:
-    vocabolary=dict()
-    for array in self.fit_dataset:
-      string_split_to_array=array.split()
-      for word in string_split_to_array:
-        if word not in vocabolary:
-          vocabolary[word]=1
-        else:
-          vocabolary[word]+=1
-    return vocabolary
-
-  def _sort_dict_by_most_word_count(self,vocabolary):
-    return {k: v for k, v in sorted(vocabolary.items(),reverse=True, key=lambda item: item[1])}
-
-  def _add_words_to_dict_in_order(self,most_used_words_in_order)->None:
-    for i in range(self.vocab_size_limit-len(self.vocabolary)):
-      try:
-        self.vocabolary[list(most_used_words_in_order.keys())[i]]=5+i
-      except IndexError:
-        break
-
-class Tokinizer(TokinizerUtils):
-  def __init__(self,vocab_size_limit,max_sequance_length=None):
-    super().__init__(vocab_size_limit,max_sequance_length)
-
-  def encode(self,string) -> torch.tensor:
-    encode=[]
-    encode.append(self.vocabolary["SOS"])
-    encode=self._encode_string(string,encode)
-    encode.append(self.vocabolary["EOS"])
-
-    return self._pad_encoding(encode)
-
-  def _encode_string(self,string,encode)->list:
-    for word in string.split():
-      if len(encode)==self.longets_string_len-1:
-        break
-      if word not in self.vocabolary.keys():
-        encode.append(self.vocabolary["UNK"])
-      else:
-        encode.append(self.vocabolary[str(word)])
-    return encode
-
-  def _pad_encoding(self,encode):
-    requredPaddingLength=self.longets_string_len-len(encode)
-    for pad in range(requredPaddingLength):
-      encode.append(self.vocabolary["PAD"])
-    return encode
-
-  def decode(self,token_tensor:torch.tensor) -> str:
-    self._check_tensor_dimension(token_tensor)
-    return self._decode_tensor(token_tensor)
-
-  def _check_tensor_dimension(self,tensor):
-    tensor_dimensions=len(tensor.shape)
-    if tensor_dimensions>1:
-      raise  ValueError(f"tensor has to many dimensions. expected 1d got {tensor_dimensions}d")
-
-  def _decode_tensor(self,tensor):
-    string_decode=""
-
-    for token in tensor.cpu().numpy():
-      if token==self.vocabolary["SOS"]:
-        pass
-      elif token==self.vocabolary["EOS"]:
-        break
-      else:
-       string_decode="{} {}".format(string_decode,list(self.vocabolary.keys())[list(self.vocabolary.values()).index(token)])
-
-    return string_decode[1:]
+  def findTokensWord(self, vocabalary:dict, token:int) -> str:
+    if token in vocabalary:
+      return vocabalary[token]
+    return vocabalary[1]
 
 
-tokinizer=Tokinizer(max_sequance_length=33,vocab_size_limit=60000)
-tokinizer._extract_data_from_pandas_csv(["/content/drive/MyDrive/shitpostCommentData.csv","/content/drive/MyDrive/preTrainingData.csv"])
-tokinizer.fit()
+
+class Tokinizer(TokinizerUtil):
+  def encode(self, message:str):
+    encodedMessage=[]
+
+    for word in message.split(" "):
+      if len(encodedMessage)>=self.maxSquanceLength:
+        return self.pad(encodedMessage)
+
+      self.addWord(word)
+      token=self.findWordsToken(self.dictonary, word)
+      encodedMessage.append(token)
+
+    return self.pad(encodedMessage)
+
+  def decode(self, encodedMessage:list[int]):
+    decodedMessage=""
+    decodeHash={v: k for k, v in self.dictonary.items()}
+
+    for token in encodedMessage:
+      word=self.findTokensWord(decodeHash, token)
+      decodedMessage+=word+" "
+
+    return decodedMessage
+
+
+    def __len__(self):
+      return len(self.dictonary)
+tokinizer=Tokinizer()
 
 """###Dataset"""
 
 class promptDataset(Dataset):
-  def __init__(self,path:str,tokinizer):
+  def __init__(self,path:str, tokinizer:Tokinizer):
     df=pd.read_csv(path)
 
     df_question=[string_preprocess(str(i)) for i in df["input"]]
@@ -450,7 +378,7 @@ class MaskedLanguageModel(nn.Module):
 class MultiHeadedAttention(nn.Module):
   def __init__(self,vocabalary_size, output_size):
     super().__init__()
-    self.attention=nn.MultiheadAttention(tokinizer.longets_string_len,HEAD_NUMBERS)
+    self.attention=nn.MultiheadAttention(tokinizer.maxSquanceLength,HEAD_NUMBERS)
     self.norm=nn.LayerNorm(output_size)
 
   def forward(self,input,encoder_output=None):
@@ -510,10 +438,10 @@ class Seq2Seq(nn.Module):
 
 TOKINIZER_VOCAB=len(tokinizer)
 
-encoder=Encoder(tokinizer.longets_string_len, TOKINIZER_VOCAB, HIDDEN_SIZE).to(device)
+encoder=Encoder(tokinizer.maxSquanceLength, TOKINIZER_VOCAB, HIDDEN_SIZE).to(device)
 # encoder.load_state_dict(torch.load("/content/drive/MyDrive/preTrainedEncoder_2.pth",map_location=device))
 
-decoder=Decoder(tokinizer.longets_string_len, TOKINIZER_VOCAB, HIDDEN_SIZE).to(device)
+decoder=Decoder(tokinizer.maxSquanceLength, TOKINIZER_VOCAB, HIDDEN_SIZE).to(device)
 
 seq2seq=Seq2Seq(encoder,decoder,device,TOKINIZER_VOCAB).to(device)
 # seq2seq.load_state_dict(torch.load("/content/drive/MyDrive/preTrainedTransformer_2.pth",map_location=device))
@@ -522,7 +450,7 @@ seq2seq=Seq2Seq(encoder,decoder,device,TOKINIZER_VOCAB).to(device)
 def make_prediction(string:str):
   input_sequence=tokinizer.encode(string)
   input_sequence=torch.tensor([input_sequence])
-  generated_tokens = seq2seq.generate_tokens(input_sequence.to(device), 3, 4,tokinizer.longets_string_len).argmax(-1)
+  generated_tokens = seq2seq.generate_tokens(input_sequence.to(device), 3, 4,tokinizer.maxSquanceLength).argmax(-1)
   return tokinizer.decode(generated_tokens.squeeze(0).cpu())
 pred=make_prediction("olla")
 print(pred)
@@ -541,8 +469,7 @@ print(f'The decoder model has {parametersCount(decoder):,} trainable parameters'
 """
 
 optimizer=torch.optim.Adam(seq2seq.parameters(),lr=0.001)
-# loss=nn.CrossEntropyLoss(ignore_index=0)
-loss=nn.CrossEntropyLoss()
+loss=nn.CrossEntropyLoss(ignore_index=0)
 
 """##Training Loops
 
@@ -575,9 +502,6 @@ class TrainingUtil():
     prediction = prediction.to(self.device)
     target = target.to(self.device).long()
 
-    print("prediction: ", prediction.shape)
-    print("target: ", target.shape)
-
     prediction_loss = self.loss(prediction.view(-1, prediction.shape[-1]), target.view(-1))
     prediction_acc = self.accuracy(prediction.argmax(2), target)
 
@@ -586,7 +510,7 @@ class TrainingUtil():
   def createDatasetFromPandasCsv(self,csvFilePath,trainSplit):
     dataset=promptDataset(csvFilePath,tokinizer)
     print("dataset size: ",len(dataset))
-    train_size = int(0.8 * len(dataset))
+    train_size = int(trainSplit * len(dataset))
     test_size = len(dataset) - train_size
     trainDataset, testDataset = torch.utils.data.random_split(dataset, [train_size, test_size])
 
@@ -635,13 +559,13 @@ class TrainNN(TrainingUtil):
             prediction = self.make_prediction(input, target)
             train_loss, train_acc = self.getLossAndAccuracy(prediction, target)
 
-            if self.currentEpoch % 10 == 0:
-              print("loss: ", train_loss.item())
-              print(f"input:{input.dtype}, target:{target.dtype}, prediction:{prediction.dtype}")
-              print(f"input: requires_grad={input.requires_grad}, target: requires_grad={target.requires_grad}, prediction: requires_grad={prediction.requires_grad}")
-              print(f"input: grad={input.grad}, target: grad={target.grad}, prediction: grad={prediction.grad}")
-              for name, param in self.model.named_parameters():
-                print(f'{name}: requires_grad={param.requires_grad}, dtype={param.dtype}, grad={param.grad.shape}')
+            # if self.currentEpoch % 10 == 0:
+            #     print("loss: ", train_loss.item())
+            #     print(f"input:{input.dtype}, target:{target.dtype}, prediction:{prediction.dtype}")
+            #     print(f"input: requires_grad={input.requires_grad}, target: requires_grad={target.requires_grad}, prediction: requires_grad={prediction.requires_grad}")
+            #     print(f"input: grad={input.grad}, target: grad={target.grad}, prediction: grad={prediction.grad}")
+            #     for name, param in self.model.named_parameters():
+            #         print(f'{name}: requires_grad={param.requires_grad}, dtype={param.dtype}, grad={param.grad.shape}')
 
             train_loss.backward()
             optimizer.step()
@@ -672,9 +596,6 @@ class TrainNN(TrainingUtil):
 
                 yield test_loss, test_acc
 
-
-TrainNN(EPOCHS=1000, model=seq2seq, loss=loss, device=device, savePath="trainedSeq2seq_2", tokinizer=tokinizer, csvFilePath="/content/drive/MyDrive/shitpostCommentData.csv", trainSplit=0.8)
-
 """###Training Encoder"""
 
 class TrainEncoder(TrainingUtil):
@@ -704,6 +625,11 @@ class TrainEncoder(TrainingUtil):
           print("\ninput:      ",tokinizer.decode(input[0]))
           print("\ntarget:     ",tokinizer.decode(target[0]))
           print("\nprediction: ",tokinizer.decode(prediction[0].argmax(-1)))
+          print(f"input:{input.dtype}, target:{target.dtype}, prediction:{prediction.dtype}")
+          print(f"input: requires_grad={input.requires_grad}, target: requires_grad={target.requires_grad}, prediction: requires_grad={prediction.requires_grad}")
+          print(f"input: grad={input.grad}, target: grad={target.grad}, prediction: grad={prediction.grad}")
+          for name, param in self.model.named_parameters():
+              print(f'{name}: requires_grad={param.requires_grad}, dtype={param.dtype}, grad={param.grad.shape}')
 
         yield test_loss,test_acc
 
@@ -716,10 +642,3 @@ if pretrain=="encoder":
   TrainEncoder(EPOCHS=EPOCHS,model=encoder,loss=loss,device=device,savePath="preTrainedEncoder_2",tokinizer=tokinizer,csvFilePath="/content/drive/MyDrive/preTrainingData.csv",trainSplit=.8)
 else:
   TrainNN(EPOCHS=EPOCHS,model=seq2seq,loss=loss,device=device,savePath="trainedSeq2seq_2",tokinizer=tokinizer,csvFilePath="/content/drive/MyDrive/shitpostCommentData.csv",trainSplit=.8)
-
-line="spez"
-for _ in range(10):
-  print(len(line.split(" ")))
-  print(line)
-  with torch.inference_mode():
-    line=make_prediction(line)
